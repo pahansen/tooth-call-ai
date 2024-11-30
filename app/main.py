@@ -9,23 +9,12 @@ from fastapi.responses import JSONResponse
 from fastapi.websockets import WebSocketDisconnect
 from dotenv import load_dotenv
 from app.tools.cal_tool import CalTool
+from app.config import VOICE, LOG_EVENT_TYPES, SYSTEM_PROMPT
 
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 PORT = int(os.getenv("PORT", 5050))
-
-SYSTEM_MESSAGE = (
-    """Du bist ein Assistent, der bei Kalenderbuchungen hilft. Du kannst Termine erstellen, stornieren und auch umbuchen.
-    Das ist deine EINZIGE Aufgabe. Für alle anderen Anfragen antwortest du, dass du dabei nicht weiterhelfen kannst."""
-)
-VOICE = "alloy"
-
-LOG_EVENT_TYPES = [
-    "response.content.done", "rate_limits.updated", "response.done",
-    "input_audio_buffer.commited", "input_audio_buffer.speech_stopped",
-    "input_audio_buffer.speech_started", "session.created", "error"
-]
 
 app = FastAPI()
 
@@ -165,11 +154,20 @@ async def initialize_session(openai_ws):
             "input_audio_format": "pcm16",
             "output_audio_format": "pcm16",
             "voice": VOICE,
-            "instructions": SYSTEM_MESSAGE,
+            "instructions": SYSTEM_PROMPT,
             "modalities": ["text", "audio"],
             "temperature": 0.8,
             "tools": [CalTool.get_create_booking_description(), CalTool.get_cancel_booking_description()]
         }
     }
+    hello_message = {
+        "type": "response.create",
+        "response": {
+            "instructions": """Stelle dich als KI Assistent der Zahnarztpraxis vor und teile dem Anrufer mit, dass du Terminbuchungen organisieren kannst. 
+            Weise zusätzlich darauf hin, dass der Anrufer auch von dem Praxisteam zurückgerufen werden kann, sollte sich sein Anliegen nicht lösen lassen.""",
+        }
+    }
+
     print("Sending session update:", json.dumps(session_update))
     await openai_ws.send(json.dumps(session_update))
+    await openai_ws.send(json.dumps(hello_message))
