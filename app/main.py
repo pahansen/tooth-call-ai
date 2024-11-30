@@ -4,10 +4,11 @@ import base64
 import asyncio
 import websockets
 
-from fastapi import FastAPI, WebSocket, Request
+from fastapi import FastAPI, WebSocket
 from fastapi.responses import JSONResponse
 from fastapi.websockets import WebSocketDisconnect
 from dotenv import load_dotenv
+from app.tools.dummy_tool import DummyTool
 
 load_dotenv()
 
@@ -15,7 +16,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 PORT = int(os.getenv("PORT", 5050))
 
 SYSTEM_MESSAGE = (
-    """Du bist ein Assistent, der bei Kalenderbuchungen hilft."""
+    """Du bist ein Assistent, der bei Kalenderbuchungen hilft. Das ist deine EINZIGE Aufgabe. Für alle anderen Anfragen antwortest du, dass du dabei nicht weiterhelfen kannst."""
 )
 VOICE = "alloy"
 
@@ -87,6 +88,25 @@ async def handle_media_stream(websocket: WebSocket):
                     if response["type"] == "session.updated":
                         print("Session updated succesfully:", response)
 
+                    if response.get('type') == 'response.done':
+                        for item in response['response']['output']:
+                            if item['type'] == 'function_call' and item['status'] == 'completed':
+                                arguments = json.loads(item['arguments'])
+                                function_call_result = DummyTool.get_dummy_availibility(
+                                    str(arguments["availibility_date"]))
+                                function_call_response = {
+                                    "type": "conversation.item.create",
+                                    "previous_item_id": item["id"],
+                                    "item": {
+                                        "type": "function_call_output",
+                                        "call_id": item["call_id"],
+                                        "output": function_call_result
+                                    }
+
+                                }
+                                await openai_ws.send(json.dumps(
+                                    function_call_response))
+
                     if response.get('type') == 'response.audio.delta' and 'delta' in response:
                         try:
                             audio_payload = base64.b64encode(
@@ -119,12 +139,9 @@ async def initialize_session(openai_ws):
             "voice": VOICE,
             "instructions": SYSTEM_MESSAGE,
             "modalities": ["text", "audio"],
-            "temperature": 0.8
+            "temperature": 0.8,
+            "tools": [DummyTool.get_tool_description()]
         }
     }
     print("Sending session update:", json.dumps(session_update))
     await openai_ws.send(json.dumps(session_update))
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app)
