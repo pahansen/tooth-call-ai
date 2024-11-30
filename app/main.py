@@ -16,14 +16,15 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 PORT = int(os.getenv("PORT", 5050))
 
 SYSTEM_MESSAGE = (
-    """Du bist ein Assistent, der bei Kalenderbuchungen hilft. Das ist deine EINZIGE Aufgabe. Für alle anderen Anfragen antwortest du, dass du dabei nicht weiterhelfen kannst."""
+    """Du bist ein Assistent, der bei Kalenderbuchungen hilft. Du kannst Termine erstellen, stornieren und auch umbuchen.
+    Das ist deine EINZIGE Aufgabe. Für alle anderen Anfragen antwortest du, dass du dabei nicht weiterhelfen kannst."""
 )
 VOICE = "alloy"
 
 LOG_EVENT_TYPES = [
     "response.content.done", "rate_limits.updated", "response.done",
     "input_audio_buffer.commited", "input_audio_buffer.speech_stopped",
-    "input_audio_buffer.speech_started", "session.created"
+    "input_audio_buffer.speech_started", "session.created", "error"
 ]
 
 app = FastAPI()
@@ -125,20 +126,33 @@ async def handle_media_stream(websocket: WebSocket):
             if function_call_name == "create_booking":
                 function_call_result = CalTool.create_booking(function_call_arguments.get(
                     "start"), function_call_arguments.get("attendee_name"), function_call_arguments.get("additional_notes"))
+            if function_call_name == "cancel_booking":
+                function_call_result = CalTool.cancel_booking(function_call_arguments.get(
+                    "uid"), function_call_arguments.get("start"), function_call_arguments.get("attendee_name"))
 
             if function_call_result:
                 function_call_response = {
                     "type": "conversation.item.create",
                     "previous_item_id": function_call_item["id"],
                     "item": {
+                        "id": function_call_item["id"] + "_fcr",
                         "type": "function_call_output",
-                            "call_id": function_call_item["call_id"],
-                            "output": function_call_result
+                        "call_id": function_call_item["call_id"],
+                        "output": function_call_result
                     }
 
                 }
                 await openai_ws.send(json.dumps(
                     function_call_response))
+
+                user_feedback = {
+                    "type": "response.create",
+                    "response": {
+                        "instructions": "Teile dem Nutzer das Ergebnis der Terminbuchung mit.",
+                    }
+                }
+
+                await openai_ws.send(json.dumps(user_feedback))
 
         await asyncio.gather(receive_from_client(), send_to_client())
 
@@ -154,7 +168,7 @@ async def initialize_session(openai_ws):
             "instructions": SYSTEM_MESSAGE,
             "modalities": ["text", "audio"],
             "temperature": 0.8,
-            "tools": [CalTool.get_booking_description()]
+            "tools": [CalTool.get_create_booking_description(), CalTool.get_cancel_booking_description()]
         }
     }
     print("Sending session update:", json.dumps(session_update))
