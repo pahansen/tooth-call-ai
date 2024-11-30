@@ -4,7 +4,7 @@ import base64
 import asyncio
 import websockets
 
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, Header, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.websockets import WebSocketDisconnect
 from dotenv import load_dotenv
@@ -13,6 +13,7 @@ from app.config import VOICE, LOG_EVENT_TYPES, SYSTEM_PROMPT
 
 load_dotenv()
 
+API_AUTH_KEY = os.getenv("API_AUTH_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 PORT = int(os.getenv("PORT", 5050))
 
@@ -20,6 +21,8 @@ app = FastAPI()
 
 if not OPENAI_API_KEY:
     raise ValueError("Missing OpenAI API Key.")
+if not OPENAI_API_KEY:
+    API_AUTH_KEY = os.getenv("Missing API Auth Key.")
 
 
 @app.get("/", response_class=JSONResponse)
@@ -28,7 +31,12 @@ async def index_page():
 
 
 @app.websocket("/media-stream")
-async def handle_media_stream(websocket: WebSocket):
+async def handle_media_stream(websocket: WebSocket, authorization: str = Header(alias="Authorization")):
+    # Check for Authorization header
+    if authorization != f"Bearer {API_AUTH_KEY}":
+        await websocket.close(code=1008)  # Policy Violation
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
     print("Client connected")
     await websocket.accept()
 
