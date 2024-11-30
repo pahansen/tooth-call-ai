@@ -8,7 +8,7 @@ from fastapi import FastAPI, WebSocket
 from fastapi.responses import JSONResponse
 from fastapi.websockets import WebSocketDisconnect
 from dotenv import load_dotenv
-from app.tools.dummy_tool import DummyTool
+from app.tools.cal_tool import CalTool
 
 load_dotenv()
 
@@ -91,21 +91,11 @@ async def handle_media_stream(websocket: WebSocket):
                     if response.get('type') == 'response.done':
                         for item in response['response']['output']:
                             if item['type'] == 'function_call' and item['status'] == 'completed':
-                                arguments = json.loads(item['arguments'])
-                                function_call_result = DummyTool.get_dummy_availibility(
-                                    str(arguments["availibility_date"]))
-                                function_call_response = {
-                                    "type": "conversation.item.create",
-                                    "previous_item_id": item["id"],
-                                    "item": {
-                                        "type": "function_call_output",
-                                        "call_id": item["call_id"],
-                                        "output": function_call_result
-                                    }
-
-                                }
-                                await openai_ws.send(json.dumps(
-                                    function_call_response))
+                                try:
+                                    await handle_function_call(item)
+                                except Exception as e:
+                                    print(
+                                        f"Error processing function call: {e}")
 
                     if response.get('type') == 'response.audio.delta' and 'delta' in response:
                         try:
@@ -126,6 +116,30 @@ async def handle_media_stream(websocket: WebSocket):
             except Exception as e:
                 print(f"Error sending audio to client: {e}")
 
+        async def handle_function_call(function_call_item: dict):
+            function_call_name = function_call_item["name"]
+            function_call_arguments = json.loads(
+                function_call_item['arguments'])
+            function_call_result = None
+
+            if function_call_name == "create_booking":
+                function_call_result = CalTool.create_booking(function_call_arguments.get(
+                    "start"), function_call_arguments.get("attendee_name"), function_call_arguments.get("additional_notes"))
+
+            if function_call_result:
+                function_call_response = {
+                    "type": "conversation.item.create",
+                    "previous_item_id": function_call_item["id"],
+                    "item": {
+                        "type": "function_call_output",
+                            "call_id": function_call_item["call_id"],
+                            "output": function_call_result
+                    }
+
+                }
+                await openai_ws.send(json.dumps(
+                    function_call_response))
+
         await asyncio.gather(receive_from_client(), send_to_client())
 
 
@@ -140,7 +154,7 @@ async def initialize_session(openai_ws):
             "instructions": SYSTEM_MESSAGE,
             "modalities": ["text", "audio"],
             "temperature": 0.8,
-            "tools": [DummyTool.get_tool_description()]
+            "tools": [CalTool.get_booking_description()]
         }
     }
     print("Sending session update:", json.dumps(session_update))
