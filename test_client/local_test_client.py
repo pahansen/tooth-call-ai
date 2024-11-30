@@ -4,6 +4,7 @@ import json
 import pyaudio
 import audioop
 import base64
+import time
 
 # Replace with your WebSocket endpoint
 WEBSOCKET_ENDPOINT = "ws://localhost:8000/media-stream"
@@ -37,12 +38,13 @@ async def send_audio_to_websocket(websocket, stream):
             # Encode the audio chunk as Base64
             audio_payload = base64.b64encode(audio_chunk).decode("utf-8")
 
+            current_timestamp = int(time.time() * 1000)
             # Prepare the media message
             media_message = {
                 "event": "media",
                 "media": {
                     "payload": audio_payload,  # Base64-encoded PCM data
-                    "timestamp": 0  # Replace with actual timestamp if needed
+                    "timestamp": current_timestamp
                 }
             }
             # Send to the WebSocket server
