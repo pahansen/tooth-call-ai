@@ -1,3 +1,5 @@
+"""FastAPI setup with websocket connection to OpenAI realtime API.
+"""
 import os
 import json
 import base64
@@ -9,13 +11,13 @@ from fastapi.responses import JSONResponse
 from fastapi.websockets import WebSocketDisconnect
 from dotenv import load_dotenv
 from app.tools.cal_tool import CalTool
-from app.config import VOICE, LOG_EVENT_TYPES, SYSTEM_PROMPT
+from app.config import VOICE, LOG_EVENT_TYPES
+from app.prompts.prompt_file_paths import SYSTEM, INTRO_SPEECH
 
 load_dotenv()
 
 API_AUTH_KEY = os.getenv("API_AUTH_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-PORT = int(os.getenv("PORT", 5050))
 
 app = FastAPI()
 
@@ -155,6 +157,11 @@ async def handle_media_stream(websocket: WebSocket, authorization: str = Header(
 
 
 async def initialize_session(openai_ws):
+    with open(SYSTEM) as file:
+        system_prompt = file.read()
+    with open(INTRO_SPEECH) as file:
+        intro_speech_prompt = file.read()
+
     session_update = {
         "type": "session.update",
         "session": {
@@ -162,20 +169,19 @@ async def initialize_session(openai_ws):
             "input_audio_format": "pcm16",
             "output_audio_format": "pcm16",
             "voice": VOICE,
-            "instructions": SYSTEM_PROMPT,
+            "instructions": system_prompt,
             "modalities": ["text", "audio"],
             "temperature": 0.8,
             "tools": [CalTool.get_create_booking_description(), CalTool.get_cancel_booking_description()]
         }
     }
-    hello_message = {
+    intro_speech = {
         "type": "response.create",
         "response": {
-            "instructions": """Stelle dich als KI Assistent der Zahnarztpraxis vor und teile dem Anrufer mit, dass du Terminbuchungen organisieren kannst. 
-            Weise zusätzlich darauf hin, dass der Anrufer auch von dem Praxisteam zurückgerufen werden kann, sollte sich sein Anliegen nicht lösen lassen.""",
+            "instructions": intro_speech_prompt,
         }
     }
 
     print("Sending session update:", json.dumps(session_update))
     await openai_ws.send(json.dumps(session_update))
-    await openai_ws.send(json.dumps(hello_message))
+    await openai_ws.send(json.dumps(intro_speech))

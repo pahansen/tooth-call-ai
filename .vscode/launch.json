@@ -5,6 +5,12 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python Debugger: CalTool",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "app.tools.cal_tool"
+        },
+        {
             "name": "Python Debugger: FastAPI",
             "type": "debugpy",
             "request": "launch",

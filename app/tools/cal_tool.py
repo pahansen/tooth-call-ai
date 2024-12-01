@@ -1,3 +1,5 @@
+"""Interact with calendars from cal.com.
+"""
 import os
 import requests
 import json
@@ -6,6 +8,7 @@ from datetime import datetime
 import openai
 from openai import OpenAI
 from pydantic import BaseModel
+from app.prompts.prompt_file_paths import FIND_CALENDAR_ENTRIES
 
 load_dotenv()
 
@@ -110,10 +113,13 @@ class CalTool:
 
         response = requests.request("POST", url, json=payload, headers=headers)
 
-        print(response.text)
-
         response = json.loads(response.text)
-        return str({"status": response["status"], "bookingUid": response["data"]["uid"]})
+        response_result = response.get("status")
+        booking_uid = response["data"]["uid"]
+
+        if response_result != "success":
+            return ("Kalendereintrag konnte nicht gebucht werden. Anderes Datum oder Uhrzeit versuchen.")
+        return (f"Kalendereintrag konnte erfolgreich gebucht werden. bookingUid: {booking_uid}")
 
     @classmethod
     def cancel_booking(self, uid: str = None, start: str = None, attendee_name: str = None):
@@ -128,6 +134,8 @@ class CalTool:
             response = requests.request("POST", url, headers=headers)
 
         # Otherwise we have to find uid from date and name
+        # We assume that we at least have the correct date
+        # However, name might not be spelled correctly
         else:
             input_date = datetime.strptime(start, "%Y-%m-%d")
             start_datetime = input_date.replace(
@@ -142,20 +150,23 @@ class CalTool:
             response = requests.request("GET", url, headers=headers)
 
             # Use OpenAI to find the correct entry from list of calendar entries
-            # This allows fuzzy inputs for name
+            # This allows fuzzy inputs for name and accounts for misspelling
             client = OpenAI()
             response_text = str(response.text)
+
+            with open(FIND_CALENDAR_ENTRIES) as file:
+                find_calendar_entries_prompt = file.read()
+            find_calendar_entries_prompt = find_calendar_entries_prompt.replace(
+                "{{attendee_name}}", attendee_name)
+            find_calendar_entries_prompt = find_calendar_entries_prompt.replace(
+                "{{start}}", start)
+
             completion = client.beta.chat.completions.parse(
                 model="gpt-4o-mini",
                 messages=[
                     {
                         "role": "system",
-                        "content": f""""
-                            Du hilfst aus Kalendereinträgen notwendige Informationen zu extrahieren und diese als strukturierten output zurückzugeben. 
-                            Als Input werden dir dafür mehrere Kalendereinträge gegeben. Finde mit Hilfe des Namens und des Datums den passenden 
-                            Kalendereintrag. Wenn du vermutest, dass im Namen lediglich Tippfehler vorliegen, gebe den Termin trotzdem zum passenden 
-                            Namen zurück. Falls du denkst der Name ist unter den Terminen nicht zu finden, gebe keine Antwort.
-                            Name: {attendee_name}, Datum: {start}"""
+                        "content": find_calendar_entries_prompt
                     },
                     {
                         "role": "user",
@@ -168,11 +179,14 @@ class CalTool:
             url = f"https://api.cal.com/v2/bookings/{calendar_booking_information.uid}/cancel"
             response = requests.request("POST", url, headers=headers)
 
-        print(response.text)
-
         response = json.loads(response.text)
-        return str({"status": response["status"]})
+        response_result = response.get("status")
+        if response_result != "success":
+            return ("Kalendereintrag konnte nicht storniert werden.")
+
+        return ("Kalendereintrag wurde erfolgreich storniert.")
 
 
 if __name__ == "__main__":
+    # Function calls for quick integration testing
     CalTool.cancel_booking(start="2024-12-10", attendee_name="Peter Muuhler")

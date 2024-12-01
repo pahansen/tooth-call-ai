@@ -1,3 +1,5 @@
+"""Test client to interact with voice assistant from local environment.
+"""
 import asyncio
 import websockets
 import json
