@@ -1,5 +1,6 @@
 """All paths to the prompts that are used in the application.
 """
+
 BASE_PATH = "app/prompts/prompt_files/"
 
 SYSTEM = BASE_PATH + "system.md"

@@ -1,13 +1,16 @@
 """Interact with calendars from cal.com.
 """
-import os
-import requests
+
 import json
-from dotenv import load_dotenv
+import os
 from datetime import datetime
+
 import openai
+import requests
+from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import BaseModel
+
 from app.prompts.prompt_file_paths import FIND_CALENDAR_ENTRIES
 
 load_dotenv()
@@ -34,23 +37,17 @@ class CalTool:
             "properties": {
                 "additonal_notes": {
                     "type": "string",
-                    "description": "Eine sehr kurze Zusammenfassung für welchen Anlass der Nutzer diesen Termin gebucht hat."
+                    "description": "Eine sehr kurze Zusammenfassung für welchen Anlass der Nutzer diesen Termin gebucht hat.",
                 },
                 "start": {
                     "type": "string",
-                    "description": "Datum des Termins. Beispiel des korrekten Formats: 2024-08-13T09:00:00Z"
+                    "description": "Datum des Termins. Beispiel des korrekten Formats: 2024-08-13T09:00:00Z",
                 },
-                "attendee_name": {
-                    "type": "string",
-                    "description": "Name des Kunden."
-                },
-
+                "attendee_name": {"type": "string", "description": "Name des Kunden."},
             },
-            "required": [
-                "start", "attendee_name"
-            ],
-            "additionalProperties": False
-        }
+            "required": ["start", "attendee_name"],
+            "additionalProperties": False,
+        },
     }
 
     cancel_booking_description = {
@@ -62,23 +59,17 @@ class CalTool:
             "properties": {
                 "uid": {
                     "type": "string",
-                    "description": "Frage den Nutzer NIEMALS nach diesem Parameter. Füge ihn nur hinzu, wenn er in der Konversation bereits auftaucht."
+                    "description": "Frage den Nutzer NIEMALS nach diesem Parameter. Füge ihn nur hinzu, wenn er in der Konversation bereits auftaucht.",
                 },
                 "start": {
                     "type": "string",
-                    "description": "Datum des Termins. Beispiel des korrekten Formats: 2024-08-13"
+                    "description": "Datum des Termins. Beispiel des korrekten Formats: 2024-08-13",
                 },
-                "attendee_name": {
-                    "type": "string",
-                    "description": "Name des Kunden."
-                },
-
+                "attendee_name": {"type": "string", "description": "Name des Kunden."},
             },
-            "required": [
-                "start", "attendee_name"
-            ],
-            "additionalProperties": False
-        }
+            "required": ["start", "attendee_name"],
+            "additionalProperties": False,
+        },
     }
 
     @classmethod
@@ -90,7 +81,9 @@ class CalTool:
         return self.cancel_booking_description
 
     @classmethod
-    def create_booking(self, start: str, attendee_name: str, additonal_notes: str = None):
+    def create_booking(
+        self, start: str, attendee_name: str, additonal_notes: str = None
+    ):
         url = "https://api.cal.com/v2/bookings"
         payload = {
             "start": start,
@@ -99,8 +92,8 @@ class CalTool:
                 "name": attendee_name,
                 "email": "john.doe@example.com",
                 "timeZone": "Europe/Berlin",
-                "language": "de"
-            }
+                "language": "de",
+            },
         }
         if additonal_notes:
             payload["metadata"] = {"additonal_notes": additonal_notes}
@@ -108,24 +101,27 @@ class CalTool:
         headers = {
             "cal-api-version": "2024-08-13",
             "Content-Type": "application/json",
-            "Auhtorization": f"Bearer {CAL_API_KEY}"
+            "Auhtorization": f"Bearer {CAL_API_KEY}",
         }
 
         response = requests.request("POST", url, json=payload, headers=headers)
 
         response = json.loads(response.text)
         response_result = response.get("status")
-        booking_uid = response["data"]["uid"]
 
-        if response_result != "success":
-            return ("Kalendereintrag konnte nicht gebucht werden. Anderes Datum oder Uhrzeit versuchen.")
-        return (f"Kalendereintrag konnte erfolgreich gebucht werden. bookingUid: {booking_uid}")
+        if response_result == "error":
+            return "Kalendereintrag konnte nicht gebucht werden. Anderes Datum oder Uhrzeit versuchen."
+
+        booking_uid = response["data"]["uid"]
+        return f"Kalendereintrag konnte erfolgreich gebucht werden. bookingUid: {booking_uid}"
 
     @classmethod
-    def cancel_booking(self, uid: str = None, start: str = None, attendee_name: str = None):
+    def cancel_booking(
+        self, uid: str = None, start: str = None, attendee_name: str = None
+    ):
         headers = {
             "cal-api-version": "2024-08-13",
-            "Authorization": f"Bearer {CAL_API_KEY}"
+            "Authorization": f"Bearer {CAL_API_KEY}",
         }
 
         # If uid is available from conversation, cancel directly
@@ -139,11 +135,12 @@ class CalTool:
         else:
             input_date = datetime.strptime(start, "%Y-%m-%d")
             start_datetime = input_date.replace(
-                hour=7, minute=0, second=0, microsecond=0)
+                hour=7, minute=0, second=0, microsecond=0
+            )
             end_datetime = input_date.replace(
-                hour=22, minute=0, second=0, microsecond=0)
-            start_datetime_str = start_datetime.strftime(
-                "%Y-%m-%dT%H:%M:%S.000Z")
+                hour=22, minute=0, second=0, microsecond=0
+            )
+            start_datetime_str = start_datetime.strftime("%Y-%m-%dT%H:%M:%S.000Z")
             end_datetime_str = end_datetime.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
             url = f"https://api.cal.com/v2/bookings?afterStart={start_datetime_str}&beforeEnd={end_datetime_str}"
@@ -157,23 +154,20 @@ class CalTool:
             with open(FIND_CALENDAR_ENTRIES) as file:
                 find_calendar_entries_prompt = file.read()
             find_calendar_entries_prompt = find_calendar_entries_prompt.replace(
-                "{{attendee_name}}", attendee_name)
+                "{{attendee_name}}", attendee_name
+            )
             find_calendar_entries_prompt = find_calendar_entries_prompt.replace(
-                "{{start}}", start)
+                "{{start}}", start
+            )
 
             completion = client.beta.chat.completions.parse(
                 model="gpt-4o-mini",
                 messages=[
-                    {
-                        "role": "system",
-                        "content": find_calendar_entries_prompt
-                    },
-                    {
-                        "role": "user",
-                        "content": response_text
-                    }
+                    {"role": "system", "content": find_calendar_entries_prompt},
+                    {"role": "user", "content": response_text},
                 ],
-                response_format=CalendarBookingInformation)
+                response_format=CalendarBookingInformation,
+            )
             calendar_booking_information = completion.choices[0].message.parsed
 
             url = f"https://api.cal.com/v2/bookings/{calendar_booking_information.uid}/cancel"
@@ -182,11 +176,16 @@ class CalTool:
         response = json.loads(response.text)
         response_result = response.get("status")
         if response_result != "success":
-            return ("Kalendereintrag konnte nicht storniert werden.")
+            return "Kalendereintrag konnte nicht storniert werden."
 
-        return ("Kalendereintrag wurde erfolgreich storniert.")
+        return "Kalendereintrag wurde erfolgreich storniert."
 
 
 if __name__ == "__main__":
     # Function calls for quick integration testing
+    CalTool.create_booking(
+        start="2024-12-08T10:00:00Z",
+        attendee_name="Peter Müller",
+        additonal_notes="Zahnreinigung",
+    )
     CalTool.cancel_booking(start="2024-12-10", attendee_name="Peter Muuhler")
