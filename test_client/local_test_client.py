@@ -17,6 +17,7 @@ TARGET_RATE = 24000  # Target rate for PCM
 CHUNK = 1024  # Number of frames per buffer
 FORMAT = pyaudio.paInt16  # 16-bit audio
 CHANNELS = 1  # Mono audio
+API_KEY = ""
 
 
 # Function to resample audio
@@ -100,7 +101,9 @@ async def main():
                                  rate=TARGET_RATE,
                                  output=True)
 
-    async with websockets.connect(WEBSOCKET_ENDPOINT) as websocket:
+    async with websockets.connect(WEBSOCKET_ENDPOINT, additional_headers={
+        "Authorization": f"Bearer {API_KEY}",
+    }) as websocket:
         print("Connected to the /media-stream endpoint")
 
         # Send start message
