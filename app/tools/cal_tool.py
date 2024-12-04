@@ -140,7 +140,8 @@ class CalTool:
             end_datetime = input_date.replace(
                 hour=22, minute=0, second=0, microsecond=0
             )
-            start_datetime_str = start_datetime.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+            start_datetime_str = start_datetime.strftime(
+                "%Y-%m-%dT%H:%M:%S.000Z")
             end_datetime_str = end_datetime.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
             url = f"https://api.cal.com/v2/bookings?afterStart={start_datetime_str}&beforeEnd={end_datetime_str}"
@@ -182,7 +183,7 @@ class CalTool:
 
 
 if __name__ == "__main__":
-    # Function calls for quick integration testing
+    # Function calls for quick integration testing during development
     CalTool.create_booking(
         start="2024-12-08T10:00:00Z",
         attendee_name="Peter Müller",
