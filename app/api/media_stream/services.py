@@ -6,6 +6,7 @@ from fastapi.websockets import WebSocketDisconnect
 from app.config import LOG_EVENT_TYPES, VOICE
 from app.prompts.prompt_file_paths import INTRO_SPEECH, SYSTEM
 from app.tools.cal_tool import CalTool
+from app.tools.notify_staff_tool import NotifyStaffTool
 
 
 async def initialize_session(openai_ws):
@@ -27,6 +28,7 @@ async def initialize_session(openai_ws):
             "tools": [
                 CalTool.get_create_booking_description(),
                 CalTool.get_cancel_booking_description(),
+                NotifyStaffTool.get_create_call_back_description()
             ],
         },
     }
