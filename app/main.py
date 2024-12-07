@@ -15,4 +15,4 @@ app.include_router(media_stream_router)
 
 @app.get("/", response_class=JSONResponse)
 async def index_page():
-    return {"message": "Schedule it Voice Assistant is running!"}
+    return {"message": "Tooth call AI Voice Assistant is running!"}
